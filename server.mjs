@@ -154,7 +154,6 @@ app.patch('/api/projects/:id/location', async (req, res) => {
     updated_at: new Date().toISOString()
   }
 
-  let savedImageUrl = null
   if (image) {
     try {
       if (!fs.existsSync('uploads')) fs.mkdirSync('uploads')
@@ -162,7 +161,7 @@ app.patch('/api/projects/:id/location', async (req, res) => {
       const filepath = path.join('uploads', filename)
       const buffer = Buffer.from(image, 'base64')
       fs.writeFileSync(filepath, buffer)
-      savedImageUrl = `/uploads/${filename}`
+      updateData.image_url = `/uploads/${filename}`
       console.log('Image saved:', filename)
     } catch (e) {
       console.log('Error saving image:', e)
@@ -181,7 +180,7 @@ app.patch('/api/projects/:id/location', async (req, res) => {
 
   const { data: updated, error: fetchError } = await supabase
     .from('projects')
-    .select('id, title, latitude, longitude')
+    .select('id, title, latitude, longitude, image_url')
     .eq('id', req.params.id)
     .single()
 
@@ -192,7 +191,7 @@ app.patch('/api/projects/:id/location', async (req, res) => {
 
   console.log('After update:', updated)
 
-  res.json({ success: true, id: req.params.id, data: updated, image_url: savedImageUrl })
+  res.json({ success: true, id: req.params.id, data: updated })
 })
 
 // Get project reports

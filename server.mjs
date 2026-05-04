@@ -1,16 +1,37 @@
 import express from 'express'
 import cors from 'cors'
-import fs from 'fs'
-import path from 'path'
 import { createClient } from '@supabase/supabase-js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
+const STORAGE_BUCKET = process.env.SUPABASE_IMAGE_BUCKET || 'project-photos'
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://udctpettghspevhumvvq.supabase.co'
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkY3RwZXR0Z2hzcGV2aHVtdnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1MzAzODEsImV4cCI6MjA4NjEwNjM4MX0.LBLhDEFt-NaPt1qsXU_nG770D2nVDG72VRNEm9OqBYE'
 
-const supabase = createClient(
-  'https://udctpettghspevhumvvq.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkY3RwZXR0Z2hzcGV2aHVtdnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1MzAzODEsImV4cCI6MjA4NjEwNjM4MX0.LBLhDEFt-NaPt1qsXU_nG770D2nVDG72VRNEm9OqBYE'
-)
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+async function saveImageToStorage(imageBase64, projectId) {
+  const filename = `project_${projectId}_${Date.now()}.jpg`
+  const buffer = Buffer.from(imageBase64, 'base64')
+
+  const { error: uploadError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(filename, buffer, { upsert: true })
+
+  if (uploadError) {
+    throw uploadError
+  }
+
+  const { data: publicUrlData, error: publicUrlError } = supabase.storage
+    .from(STORAGE_BUCKET)
+    .getPublicUrl(filename)
+
+  if (publicUrlError) {
+    throw publicUrlError
+  }
+
+  return publicUrlData.publicUrl
+}
 
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
@@ -156,15 +177,12 @@ app.patch('/api/projects/:id/location', async (req, res) => {
 
   if (image) {
     try {
-      if (!fs.existsSync('uploads')) fs.mkdirSync('uploads')
-      const filename = `project_${req.params.id}_${Date.now()}.jpg`
-      const filepath = path.join('uploads', filename)
-      const buffer = Buffer.from(image, 'base64')
-      fs.writeFileSync(filepath, buffer)
-      updateData.image_url = `/uploads/${filename}`
-      console.log('Image saved:', filename)
+      const publicUrl = await saveImageToStorage(image, req.params.id)
+      updateData.image_url = publicUrl
+      console.log('Image saved to storage:', publicUrl)
     } catch (e) {
-      console.log('Error saving image:', e)
+      console.log('Error saving image to storage:', e)
+      return res.status(500).json({ error: 'Failed to save project image', details: e?.message || String(e) })
     }
   }
 

@@ -126,32 +126,35 @@ app.get('/api/projects/:id', async (req, res) => {
 // Update project location
 app.patch('/api/projects/:id/location', async (req, res) => {
   const { latitude, longitude, image } = req.body
-  
-  if (!latitude || !longitude) {
+  const latitudeNum = parseFloat(latitude)
+  const longitudeNum = parseFloat(longitude)
+
+  if (Number.isNaN(latitudeNum) || Number.isNaN(longitudeNum)) {
     return res.status(400).json({ error: 'Latitude and longitude required' })
   }
-  
-  console.log('Updating project:', req.params.id, 'with lat:', latitude, 'lng:', longitude)
-  
+
+  console.log('Updating project:', req.params.id, 'with lat:', latitudeNum, 'lng:', longitudeNum)
+
   const { data: existing, error: checkError } = await supabase
     .from('projects')
     .select('id, title, latitude, longitude')
     .eq('id', req.params.id)
     .single()
-  
+
   if (checkError || !existing) {
     console.log('Project not found:', checkError)
     return res.status(404).json({ error: 'Project not found' })
   }
-  
+
   console.log('Before update:', existing)
-  
-  const updateData = { 
-    latitude: parseFloat(latitude), 
-    longitude: parseFloat(longitude), 
-    updated_at: new Date().toISOString() 
+
+  const updateData = {
+    latitude: latitudeNum,
+    longitude: longitudeNum,
+    updated_at: new Date().toISOString()
   }
-  
+
+  let savedImageUrl = null
   if (image) {
     try {
       if (!fs.existsSync('uploads')) fs.mkdirSync('uploads')
@@ -159,32 +162,37 @@ app.patch('/api/projects/:id/location', async (req, res) => {
       const filepath = path.join('uploads', filename)
       const buffer = Buffer.from(image, 'base64')
       fs.writeFileSync(filepath, buffer)
-      updateData.image_url = `/uploads/${filename}`
+      savedImageUrl = `/uploads/${filename}`
       console.log('Image saved:', filename)
     } catch (e) {
       console.log('Error saving image:', e)
     }
   }
-  
+
   const { error: updateError } = await supabase
     .from('projects')
     .update(updateData)
     .eq('id', req.params.id)
-  
+
   if (updateError) {
     console.log('Update error:', updateError)
     return res.status(500).json({ error: updateError.message })
   }
-  
-  const { data: updated } = await supabase
+
+  const { data: updated, error: fetchError } = await supabase
     .from('projects')
-    .select('id, title, latitude, longitude, image_url')
+    .select('id, title, latitude, longitude')
     .eq('id', req.params.id)
     .single()
-  
+
+  if (fetchError) {
+    console.log('Error fetching updated project:', fetchError)
+    return res.status(500).json({ error: 'Failed to fetch updated project', details: fetchError.message })
+  }
+
   console.log('After update:', updated)
-  
-  res.json({ success: true, id: req.params.id, ...updateData, updated })
+
+  res.json({ success: true, id: req.params.id, data: updated, image_url: savedImageUrl })
 })
 
 // Get project reports

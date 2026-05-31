@@ -43,7 +43,7 @@ app.get('/api/projects', async (req, res) => {
   
   let query = supabase
     .from('projects')
-    .select('id, title, description, project_type, status, sector, ministry, contractor, budget, disbursed, verified_progress, state_name, lga, area, latitude, longitude, start_date, expected_end_date, year, project_code', { count: 'exact' })
+    .select('id, title, description, project_type, status, sector, ministry, contractor, budget, disbursed, verified_progress, state_name, lga, area, latitude, longitude, start_date, expected_end_date, year, image_url, project_code', { count: 'exact' })
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)
     .order('budget', { ascending: false })
@@ -96,7 +96,7 @@ app.get('/api/projects/nearby', async (req, res) => {
   try {
     const { data, error, count } = await supabase
       .from('projects')
-      .select('id, title, latitude, longitude, status, project_type, sector, budget, state_name, year', { count: 'exact' })
+      .select('id, title, latitude, longitude, status, project_type, image_url, sector, budget, state_name, year', { count: 'exact' })
       .not('latitude', 'is', null)
       .not('longitude', 'is', null)
       .gte('latitude', latitude - latDelta)
